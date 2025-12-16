@@ -406,7 +406,7 @@ function courtLabel(letter){
   const L = String(letter||"").toUpperCase();
   const real = courtMap[L];
   if(real === "" || real == null) return `Pista ${L}`;
-  return `Pista ${L} → ${real}`;
+  return `Pista ${real}`;
 }
 
 /** RENDER: GROUPS */
@@ -657,7 +657,7 @@ function renderBracketTree(which, mountId){
         </div>
         <div class="matchActions">
           <select class="pick" data-pick>${pickOpts.join("")}</select>
-          ${winnerName ? `<span class="winnerBadge">✅ ${winnerName}</span>` : ``}
+          ${winnerName ? `<span class="winnerBadge"> ${winnerName}</span>` : ``}
         </div>
       </div>
     `;
@@ -816,3 +816,4 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
