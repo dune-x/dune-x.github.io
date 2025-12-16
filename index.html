@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torneo Pádel DUNE</title>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<style>
+:root{
+  --primary:#0056b3; --bg:#f4f7f6; --card:#fff;
+  --muted:#667; --line:#e7e7e7; --win:#d4edda; --loss:#f8d7da;
+}
+body{margin:0;font-family:system-ui;background:var(--bg)}
+.wrap{max-width:1200px;margin:auto;padding:16px}
+.header{background:var(--card);padding:16px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+h1{margin:0;color:var(--primary)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:0;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.ghost{background:#e9eef7}
+.pill{font-size:.9rem;color:var(--muted)}
+.tabs{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}
+.tab{padding:10px 14px;border-radius:10px;border:0;background:#ddd;font-weight:700;cursor:pointer}
+.tab.active{background:var(--primary);color:#fff}
+.panel{display:none}
+.panel.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+.card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.06);border-top:5px solid var(--primary)}
+.small{font-size:.85rem;color:var(--muted)}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{border-bottom:1px solid var(--line);padding:8px}
+th{text-transform:uppercase;font-size:.75rem;color:var(--muted)}
+.score{width:52px;padding:6px;border-radius:8px;border:1px solid #ccc;font-weight:800;text-align:center}
+.score.win{background:var(--win)}
+.score.loss{background:var(--loss)}
+.top1{background:#ffd700}
+.top2{background:#c0c0c0}
+select{padding:6px;border-radius:8px}
+.note{margin-top:10px;color:var(--muted);font-size:.9rem}
+input[type=file]{display:none}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<div class="header">
+  <h1>🏓 Torneo Pádel DUNE</h1>
+  <div class="row">
+    <label class="btn ghost" for="csvFile">📄 Importar CSV</label>
+    <input id="csvFile" type="file" accept=".csv">
+    <button class="btn ghost" id="btnAdmin">🔒 Entrar como admin</button>
+    <span class="pill" id="adminState">Modo: SOLO LECTURA</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="schedule">Grupos</button>
+  <button class="tab" data-tab="leaderboard">Clasificación</button>
+  <button class="tab" data-tab="finals">Eliminatorias</button>
+</div>
+
+<div id="schedule" class="panel active">
+  <div id="scheduleGrid" class="grid"></div>
+</div>
+
+<div id="leaderboard" class="panel">
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Pareja</th><th>Grupo</th>
+          <th>PG</th><th>PP</th><th>JG</th><th>JP</th><th>Dif</th><th>Puntos</th>
+        </tr>
+      </thead>
+      <tbody id="leaderTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="finals" class="panel">
+  <div class="card">
+    <button class="btn ghost" id="btnRebuild">🔄 Regenerar cuadro</button>
+    <h3>ORO</h3>
+    <div id="bracketOro"></div>
+    <h3>PLATA</h3>
+    <div id="bracketPlata"></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ========= ADMIN PASSWORD ========= */
+let isAdmin=false;
+function applyLock(){
+  document.querySelectorAll("input.score, select").forEach(el=>el.disabled=!isAdmin);
+  document.getElementById("adminState").textContent =
+    isAdmin ? "Modo: ADMIN" : "Modo: SOLO LECTURA";
+}
+document.getElementById("btnAdmin").onclick=()=>{
+  const p=prompt("Contraseña admin:");
+  if(p==="XDUNEX"){
+    isAdmin=true;
+    localStorage.setItem("admin","1");
+    applyLock();
+    alert("Modo admin activado");
+  }else alert("Contraseña incorrecta");
+};
+if(localStorage.getItem("admin")==="1") isAdmin=true;
+
+/* ========= DATA ========= */
+let teams=[],matches=[],results={},brackets={oro:null,plata:null};
+
+function buildMatches(){
+  const g={};teams.forEach(t=>(g[t.group]??=[]).push(t));
+  matches=[];
+  Object.keys(g).forEach(gr=>{
+    const a=g[gr];
+    for(let i=0;i<a.length;i++)
+      for(let j=i+1;j<a.length;j++)
+        matches.push({id:`${gr}-${a[i].id}-${a[j].id}`,group:gr,a:a[i].id,b:a[j].id});
+  });
+}
+
+function renderSchedule(){
+  const grid=document.getElementById("scheduleGrid");
+  grid.innerHTML="";
+  const byId=Object.fromEntries(teams.map(t=>[t.id,t.name]));
+  [...new Set(teams.map(t=>t.group))].sort().forEach(g=>{
+    const card=document.createElement("div");
+    card.className="card";
+    const rows=matches.filter(m=>m.group===g).map(m=>{
+      const r=results[m.id]||{a:0,b:0};
+      return `<tr data-id="${m.id}">
+        <td>${byId[m.a]} vs ${byId[m.b]}</td>
+        <td style="text-align:right">
+          <input class="score" value="${r.a||0}" data-a>
+          -
+          <input class="score" value="${r.b||0}" data-b>
+        </td></tr>`;
+    }).join("");
+    card.innerHTML=`<h3>Grupo ${g}</h3><table>${rows}</table>`;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll("tr").forEach(tr=>{
+    const id=tr.dataset.id;
+    const a=tr.querySelector("[data-a]");
+    const b=tr.querySelector("[data-b]");
+    const upd=()=>{
+      results[id]={a:+a.value||0,b:+b.value||0};
+      renderLeaderboard();
+      renderBrackets();
+      applyLock();
+    };
+    a.oninput=b.oninput=upd;
+  });
+}
+
+function renderLeaderboard(){
+  const stats={};
+  teams.forEach(t=>stats[t.id]={...t,pg:0,pp:0,jg:0,jp:0,p:0});
+  matches.forEach(m=>{
+    const r=results[m.id]; if(!r) return;
+    const A=stats[m.a],B=stats[m.b];
+    A.jg+=r.a;A.jp+=r.b;B.jg+=r.b;B.jp+=r.a;
+    if(r.a>r.b){A.pg++;A.p+=3;B.pp++}
+    if(r.b>r.a){B.pg++;B.p+=3;A.pp++}
+  });
+  const out=Object.values(stats).sort((a,b)=>b.p-a.p||(b.jg-b.jp)-(a.jg-a.jp));
+  document.getElementById("leaderTbody").innerHTML=out.map((t,i)=>
+    `<tr class="${i%4===0?'top1':i%4===1?'top2':''}">
+      <td>${i+1}</td><td>${t.name}</td><td>${t.group}</td>
+      <td>${t.pg}</td><td>${t.pp}</td><td>${t.jg}</td><td>${t.jp}</td>
+      <td>${t.jg-t.jp}</td><td>${t.p}</td>
+    </tr>`).join("");
+}
+
+function renderBrackets(){
+  const box=(id,b)=>{
+    if(!b) return document.getElementById(id).innerHTML="—";
+    const n=id=>teams.find(t=>t.id===id)?.name||"—";
+    document.getElementById(id).innerHTML=
+      `<table>${b.map((m,i)=>`
+        <tr>
+          <td>${n(m.a)} vs ${n(m.b)}</td>
+          <td>
+            <select data-w="${i}">
+              <option></option>
+              <option value="${m.a}">${n(m.a)}</option>
+              <option value="${m.b}">${n(m.b)}</option>
+            </select>
+          </td>
+        </tr>`).join("")}</table>`;
+  };
+  box("bracketOro",brackets.oro);
+  box("bracketPlata",brackets.plata);
+  applyLock();
+}
+
+/* ========= CSV ========= */
+document.getElementById("csvFile").onchange=async e=>{
+  const text=await e.target.files[0].text();
+  const d=Papa.parse(text,{header:true}).data;
+  teams=d.map(r=>({id:+r.id,group:r.group,name:`${r.player1} & ${r.player2}`}));
+  buildMatches();
+  renderSchedule();renderLeaderboard();
+};
+
+/* ========= TABS ========= */
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tab,.panel").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  document.getElementById(b.dataset.tab).classList.add("active");
+});
+
+/* ========= INIT ========= */
+applyLock();
+</script>
+
+</body>
+</html>
