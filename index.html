@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Torneo Pádel DUNE — Sheets Sync</title>
+  <title>Torneo Pádel DUNE-X</title>
 
   <style>
     :root{
@@ -56,18 +56,42 @@
     }
     .statusbar b{color:#111;}
     .warn{color:var(--danger); font-weight:700;}
-    .headerTop{
-  display:flex;
-  align-items:center;
-  gap:14px;
-  flex-wrap:wrap;
-}
-.headerLogo{
-  height:150px;
-  width:auto;
-  max-width:100%;
-  border-radius:10px;
-}
+
+    /* Header logo */
+    .headerTop{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+    .headerLogo{height:150px; width:auto; max-width:100%; border-radius:10px;}
+
+    /* Match meta chips */
+    .chips{display:flex; gap:6px; flex-wrap:wrap;}
+    .chip{display:inline-flex; gap:6px; align-items:center; background:#f2f4fb; border:1px solid #e3e6f5; padding:3px 8px; border-radius:999px; font-size:.78rem; color:#234;}
+    .chip b{font-size:.78rem;}
+
+    /* Bracket tree */
+    .bracketWrap{overflow:auto; padding:10px 0;}
+    .bracket{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap:18px;
+      min-width: 900px;
+      align-items:center;
+    }
+    .roundTitle{font-weight:900; color:#223; margin-bottom:8px;}
+    .round{display:flex; flex-direction:column; gap:14px;}
+    .matchBox{
+      background:#fff;
+      border:1px solid #e7e7e7;
+      border-radius:14px;
+      padding:10px;
+      box-shadow:0 4px 10px rgba(0,0,0,.04);
+      position:relative;
+    }
+    .matchTeams{display:flex; flex-direction:column; gap:6px;}
+    .teamLine{display:flex; justify-content:space-between; gap:10px; align-items:center;}
+    .teamName{font-weight:800;}
+    .pick{padding:6px 8px; border-radius:10px; border:1px solid #ccd;}
+    .scoreMini{width:44px; padding:6px 8px; border-radius:10px; border:1px solid #ccd; text-align:center; font-weight:800;}
+    .matchActions{display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:8px; flex-wrap:wrap;}
+    .winnerBadge{font-weight:900; color:#0a6; font-size:.85rem;}
   </style>
 </head>
 
@@ -75,13 +99,14 @@
 <div class="wrap">
   <div class="header">
     <div class="headerTop">
-  <img src="logo.png" alt="Logo DUNE" class="headerLogo">
-  <div>
-    <h1>Torneo Pádel DUNE-X</h1>
-    <div class="small">Resultados en tiempo real</div>
-  </div>
-</div>
-    <div class="row">
+      <img src="logo.png" alt="Logo DUNE" class="headerLogo">
+      <div>
+        <h1>Torneo Pádel DUNE-X</h1>
+        <div class="small">Resultados en tiempo real</div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
       <button class="btn ghost" id="btnReload">🔄 Recargar del servidor</button>
       <button class="btn secondary" id="btnSave">💾 Guardar en servidor</button>
 
@@ -99,8 +124,7 @@
     </div>
 
     <p class="note">
-      Nota: el guardado “para todo el mundo” ocurre al pulsar <b>Guardar en servidor</b>.
-      Si estás en modo lectura, la web se refresca cada 15s para mostrar lo último.
+      Guardado global: <b>Guardar en servidor</b>. En modo lectura, la web se refresca cada 15s.
     </p>
   </div>
 
@@ -108,11 +132,12 @@
     <button class="tab active" data-tab="schedule">Grupos</button>
     <button class="tab" data-tab="leaderboard">Clasificación</button>
     <button class="tab" data-tab="finals">Eliminatorias</button>
+    <button class="tab" data-tab="config">Config Pistas</button>
   </div>
 
   <div id="schedule" class="panel active">
     <div id="scheduleGrid" class="grid"></div>
-    <p class="note">Tip: escribe “6” “3” y pasa al siguiente. Ganador/perdedor se colorea.</p>
+    <p class="note">Los partidos muestran Hora + Pista. La “Pista real” sale del mapeo (Config Pistas).</p>
   </div>
 
   <div id="leaderboard" class="panel">
@@ -137,7 +162,7 @@
     <div class="card">
       <div class="title">
         <h2>🏆 Eliminatorias</h2>
-        <span class="small">Seeding estándar: 1-8, 4-5, 2-7, 3-6</span>
+        <span class="small">Árbol 8→4→2→1 (Oro y Plata)</span>
       </div>
 
       <div class="row" style="margin:10px 0;">
@@ -146,21 +171,40 @@
       </div>
 
       <h3 style="margin:14px 0 8px;">CUADRO ORO (8)</h3>
-      <div id="bracketOro"></div>
+      <div id="bracketOro" class="bracketWrap"></div>
 
       <h3 style="margin:18px 0 8px;">CUADRO PLATA (8)</h3>
-      <div id="bracketPlata"></div>
+      <div id="bracketPlata" class="bracketWrap"></div>
+    </div>
+  </div>
 
-      <p class="note">En cada partido: mete resultado (opcional) y selecciona ganador. Eso rellena la siguiente ronda.</p>
+  <div id="config" class="panel">
+    <div class="card">
+      <div class="title">
+        <h2>⚙️ Config Pistas (solo admin)</h2>
+        <span class="small">Mapea letra → pista real (1,2,4,6,8,9,10,11,12,13,14,15)</span>
+      </div>
+
+      <p class="note">
+        Aquí defines qué pista real corresponde a cada letra. Esto se guarda en Google Sheets (CourtMap).
+      </p>
+
+      <div id="courtMapEditor"></div>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn secondary" id="btnSaveConfig">💾 Guardar Config en servidor</button>
+        <span class="small">Necesita contraseña XDUNEX.</span>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
 /** CONFIG */
-const API_URL = "https://script.google.com/macros/s/AKfycbzrDoBAMbqJf7P6dhA5dNXl3SVzBwmkoqRSi13FDeHr_FkGggDDU2WDxCdf6M3GaIarog/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzQXGOkodDaOdr9u95fYSGAJn85gF2jPfL-wHDvzVt9jHwNeqKT_-Fpn0_jcC2-9ztAAw/exec";
 const ADMIN_PASSWORD = "XDUNEX";
 const AUTO_REFRESH_MS = 15000;
+const ALLOWED_REAL_COURTS = [1,2,4,6,8,9,10,11,12,13,14,15];
 
 /** STATE */
 let teams = [];
@@ -168,7 +212,9 @@ let matches = [];
 let results = {};
 let isAdmin = false;
 let dirty = false;
-let lastServerLoadAt = null;
+
+let courtMap = {};     // {A: 1, B: 2, ...} from Sheets
+let groupConfig = {};  // {A:{court1:'A',court2:'B',startTime:'10:00',slotMinutes:30}, ...}
 
 const byId = (id) => document.getElementById(id);
 
@@ -180,7 +226,9 @@ function setDirty(v){
 }
 function applyEditLock(){
   document.querySelectorAll('#schedule input.score').forEach(el => { el.disabled = !isAdmin; });
-  document.querySelectorAll('#finals input.score, #finals select[data-pick]').forEach(el => { el.disabled = !isAdmin; });
+  document.querySelectorAll('#finals input.scoreMini, #finals select.pick').forEach(el => { el.disabled = !isAdmin; });
+  document.querySelectorAll('#config select[data-letter]').forEach(el => { el.disabled = !isAdmin; });
+  byId("btnSaveConfig").disabled = !isAdmin;
 
   byId("adminState").textContent = isAdmin ? "Modo: ADMIN (EDITANDO)" : "Modo: SOLO LECTURA";
   byId("btnLogout").style.display = isAdmin ? "inline-block" : "none";
@@ -201,22 +249,24 @@ async function apiLoad(){
       name: `${r.player1} & ${r.player2}`.trim()
     })).filter(t => t.id && t.group && t.name);
 
-    matches = buildMatches(teams);
-
     results = {};
     const rmap = data.results || {};
     Object.keys(rmap).forEach(mid => {
       results[mid] = { scoreA: Number(rmap[mid].scoreA) || 0, scoreB: Number(rmap[mid].scoreB) || 0 };
     });
 
-    lastServerLoadAt = new Date();
-    byId("lastLoad").textContent = lastServerLoadAt.toLocaleString();
+    courtMap = data.courtMap || {};
+    groupConfig = data.groupConfig || {};
+
+    matches = buildMatchesAndSchedule(teams, groupConfig);
+
+    byId("lastLoad").textContent = new Date().toLocaleString();
     byId("serverState").textContent = "OK";
     setDirty(false);
 
     renderAll();
     return true;
-  } catch(err){
+  }catch(err){
     byId("serverState").textContent = "ERROR";
     console.error(err);
     alert("Error cargando del servidor: " + err.message);
@@ -238,9 +288,7 @@ async function apiSaveAll(){
   byId("serverState").textContent = "Guardando…";
   try{
     const payload = { password: pass, results };
-    // IMPORTANTÍSIMO: NO mandar Content-Type application/json (evita preflight CORS)
     const res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
-
     const txt = await res.text();
     let data;
     try { data = JSON.parse(txt); } catch { throw new Error("Respuesta no JSON: " + txt.slice(0,200)); }
@@ -248,43 +296,126 @@ async function apiSaveAll(){
 
     byId("serverState").textContent = "OK";
     setDirty(false);
-    alert("✅ Guardado en servidor (" + data.updated + " partidos)");
-    return true;
-  } catch(err){
+    alert("✅ Guardado en servidor (" + data.updatedResults + " partidos)");
+  }catch(err){
     byId("serverState").textContent = "ERROR";
     console.error(err);
     alert("❌ Error guardando: " + err.message);
-    return false;
   }
 }
 
-/** MATCHES */
-function buildMatches(teams){
+async function apiSaveConfig(){
+  if(!isAdmin){
+    alert("Solo admin.");
+    return;
+  }
+  const pass = prompt("Contraseña admin (para guardar config):");
+  if(pass !== ADMIN_PASSWORD){
+    alert("❌ Contraseña incorrecta");
+    return;
+  }
+  byId("serverState").textContent = "Guardando config…";
+  try{
+    const payload = { password: pass, courtMap, groupConfig };
+    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+    const txt = await res.text();
+    let data;
+    try { data = JSON.parse(txt); } catch { throw new Error("Respuesta no JSON: " + txt.slice(0,200)); }
+    if(!data.ok) throw new Error(data.error || "Error guardando config");
+
+    byId("serverState").textContent = "OK";
+    setDirty(false);
+    alert(`✅ Config guardada (CourtMap: ${data.updatedCourtMap}, GroupConfig: ${data.updatedGroupConfig})`);
+    await apiLoad();
+  }catch(err){
+    byId("serverState").textContent = "ERROR";
+    console.error(err);
+    alert("❌ Error guardando config: " + err.message);
+  }
+}
+
+/** SCHEDULE: build matches + assign time/courts with minimal movement */
+function buildMatchesAndSchedule(teams, groupConfig){
   const groups = {};
   teams.forEach(t => (groups[t.group] ??= []).push(t));
+
+  // Round-robin order for 4 teams (6 matches) in 3 rounds, 2 matches per round
+  // Indexes refer to sorted list
+  const rr4 = [
+    [[0,1],[2,3]], // round 1
+    [[0,2],[1,3]], // round 2
+    [[0,3],[1,2]]  // round 3
+  ];
+
   const out = [];
   Object.keys(groups).sort().forEach(g => {
-    const list = groups[g];
-    for(let i=0;i<list.length;i++){
-      for(let j=i+1;j<list.length;j++){
-        out.push({ id: `${g}-${list[i].id}-${list[j].id}`, group:g, a:list[i].id, b:list[j].id });
+    const list = groups[g].slice().sort((a,b)=>a.id-b.id);
+    const cfg = groupConfig[g] || { court1:"A", court2:"B", startTime:"10:00", slotMinutes:30 };
+    const start = parseTime(cfg.startTime || "10:00");
+    const slot = Number(cfg.slotMinutes)||30;
+    const c1 = String(cfg.court1||"A").toUpperCase();
+    const c2 = String(cfg.court2||"B").toUpperCase();
+
+    if(list.length === 4){
+      rr4.forEach((round, rIdx) => {
+        const t = addMinutes(start, rIdx*slot);
+        // match 1 on court1, match 2 on court2 (mínimo movimiento: siempre estas 2)
+        const m1 = round[0], m2 = round[1];
+        out.push(makeMatch(g, list[m1[0]].id, list[m1[1]].id, fmtTime(t), c1));
+        out.push(makeMatch(g, list[m2[0]].id, list[m2[1]].id, fmtTime(t), c2));
+      });
+    } else {
+      // Fallback: all pairs sequential on court1 (si no hay 4 exactos)
+      let k = 0;
+      for(let i=0;i<list.length;i++){
+        for(let j=i+1;j<list.length;j++){
+          const t = addMinutes(start, k*slot);
+          out.push(makeMatch(g, list[i].id, list[j].id, fmtTime(t), c1));
+          k++;
+        }
       }
     }
   });
+
   return out;
 }
 
-/** RENDER GROUPS */
+function makeMatch(group, a, b, timeStr, courtLetter){
+  return {
+    id: `${group}-${a}-${b}`,
+    group, a, b,
+    time: timeStr,
+    courtLetter: courtLetter
+  };
+}
+
+function parseTime(hhmm){
+  const [h,m] = String(hhmm).split(":").map(x=>parseInt(x,10));
+  return { h: (h||0), m: (m||0) };
+}
+function addMinutes(t, minutes){
+  const total = (t.h*60 + t.m) + minutes;
+  return { h: Math.floor(total/60), m: total%60 };
+}
+function fmtTime(t){
+  const hh = String(t.h).padStart(2,"0");
+  const mm = String(t.m).padStart(2,"0");
+  return `${hh}:${mm}`;
+}
+function courtLabel(letter){
+  const L = String(letter||"").toUpperCase();
+  const real = courtMap[L];
+  if(real === "" || real == null) return `Pista ${L}`;
+  return `Pista ${L} → ${real}`;
+}
+
+/** RENDER: GROUPS */
 function renderSchedule(){
   const grid = byId("scheduleGrid");
   grid.innerHTML = "";
 
   if(!teams.length){
-    grid.innerHTML = `
-      <div class="card">
-        <div class="title"><h2>Sin participantes</h2></div>
-        <p class="note">Revisa que en Google Sheets exista la pestaña <b>Participants</b> con datos.</p>
-      </div>`;
+    grid.innerHTML = `<div class="card"><div class="title"><h2>Sin participantes</h2></div></div>`;
     return;
   }
 
@@ -294,7 +425,6 @@ function renderSchedule(){
   groupKeys.forEach(g => {
     const card = document.createElement("div");
     card.className = "card";
-
     const groupTeams = teams.filter(t => t.group === g);
     const groupMatches = matches.filter(m => m.group === g);
 
@@ -304,8 +434,11 @@ function renderSchedule(){
         <span class="tag">${groupTeams.length} parejas</span>
       </div>
       <div class="small">${groupTeams.map(t => t.name).join(" · ")}</div>
+
       <table>
-        <thead><tr><th>Partido</th><th style="text-align:right;">Resultado</th></tr></thead>
+        <thead>
+          <tr><th>Partido</th><th>Hora / Pista</th><th style="text-align:right;">Resultado</th></tr>
+        </thead>
         <tbody>
           ${groupMatches.map(m => {
             const aName = teamById[m.a]?.name ?? m.a;
@@ -316,6 +449,12 @@ function renderSchedule(){
             return `
               <tr data-mid="${m.id}">
                 <td>${aName} <span class="small">vs</span> ${bName}</td>
+                <td>
+                  <div class="chips">
+                    <span class="chip"><b>🕒</b>${m.time}</span>
+                    <span class="chip"><b>🎾</b>${courtLabel(m.courtLetter)}</span>
+                  </div>
+                </td>
                 <td>
                   <div class="scoreBox">
                     <input class="score ${clsA}" type="number" min="0" max="9" value="${r.scoreA}" data-side="A"/>
@@ -328,6 +467,7 @@ function renderSchedule(){
         </tbody>
       </table>
     `;
+
     grid.appendChild(card);
   });
 
@@ -352,7 +492,6 @@ function computeLeaderboard(){
   matches.forEach(m => {
     const r = results[m.id]; if(!r) return;
     const a = stats[m.a], b = stats[m.b]; if(!a || !b) return;
-
     const sa = r.scoreA||0, sb = r.scoreB||0;
     if(sa===0 && sb===0) return;
 
@@ -373,7 +512,6 @@ function computeLeaderboard(){
   });
   return ordered;
 }
-
 function renderLeaderboard(){
   const tbody = byId("leaderTbody");
   tbody.innerHTML = "";
@@ -417,53 +555,41 @@ function renderLeaderboard(){
   });
 }
 
-/** BRACKETS */
-const BRACKET_LOCAL_KEY = "dune_brackets_local_v1";
-
+/** BRACKETS (tree style) */
+const BRACKET_LOCAL_KEY = "dune_brackets_local_v2_tree";
 function loadBrackets(){
   const raw = localStorage.getItem(BRACKET_LOCAL_KEY);
   if(!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
 let brackets = loadBrackets() || { oro: {}, plata: {} };
-
-function saveBrackets(){
-  localStorage.setItem(BRACKET_LOCAL_KEY, JSON.stringify(brackets));
-}
+function saveBrackets(){ localStorage.setItem(BRACKET_LOCAL_KEY, JSON.stringify(brackets)); }
 
 function computeGroupRankMap(ordered){
-  const map = { first: [], second: [], third: [], fourth: [] };
+  const map = { first: [], second: [], third: [] };
   const groups = [...new Set(ordered.map(x=>x.group))].sort();
-
   groups.forEach(g => {
     const arr = ordered.filter(x => x.group===g);
     if(arr[0]) map.first.push(arr[0]);
     if(arr[1]) map.second.push(arr[1]);
     if(arr[2]) map.third.push(arr[2]);
-    if(arr[3]) map.fourth.push(arr[3]);
   });
-
   const sortGlobal = (a,b)=>(b.points-a.points)||(b.diff-a.diff)||(b.jg-a.jg);
   map.second.sort(sortGlobal);
   map.third.sort(sortGlobal);
   return map;
 }
-
 function buildSeedsFromLeaderboard(){
   const ordered = computeLeaderboard();
   const rankMap = computeGroupRankMap(ordered);
 
-  const oro = [];
-  rankMap.first.forEach(x => oro.push(x));
+  const oro = [...rankMap.first];
   if(rankMap.second[0]) oro.push(rankMap.second[0]);
 
-  const plata = [];
-  rankMap.second.slice(1).forEach(x => plata.push(x));
-  rankMap.third.slice(0,2).forEach(x => plata.push(x));
+  const plata = [...rankMap.second.slice(1), ...rankMap.third.slice(0,2)];
 
   return { oro: oro.slice(0,8), plata: plata.slice(0,8) };
 }
-
 function defaultBracketFromSeeds(seeds){
   const s = seeds.map(x => x ? x.id : null);
   return {
@@ -480,91 +606,87 @@ function defaultBracketFromSeeds(seeds){
     f: { a:null, b:null, winner:null, scoreA:0, scoreB:0 }
   };
 }
-
 function propagateWinners(which){
   const br = brackets[which];
   br.sf[0].a = br.qf[0].winner ?? null;
   br.sf[0].b = br.qf[1].winner ?? null;
   br.sf[1].a = br.qf[2].winner ?? null;
   br.sf[1].b = br.qf[3].winner ?? null;
-
   br.f.a = br.sf[0].winner ?? null;
   br.f.b = br.sf[1].winner ?? null;
 }
-
 function rebuildBracketsFromGroups(){
   if(!teams.length) return;
   const seeds = buildSeedsFromLeaderboard();
   brackets.oro = defaultBracketFromSeeds(seeds.oro);
   brackets.plata = defaultBracketFromSeeds(seeds.plata);
-  propagateWinners("oro");
-  propagateWinners("plata");
+  propagateWinners("oro"); propagateWinners("plata");
   saveBrackets();
   renderBrackets();
 }
-
 function ensureBrackets(){
-  if(!brackets.oro?.qf || !brackets.plata?.qf){
-    rebuildBracketsFromGroups();
-  } else {
-    propagateWinners("oro");
-    propagateWinners("plata");
-    saveBrackets();
-  }
+  if(!brackets.oro?.qf || !brackets.plata?.qf) rebuildBracketsFromGroups();
+  propagateWinners("oro"); propagateWinners("plata");
+  saveBrackets();
 }
 
-function renderSingleBracket(which, mountId){
+function renderBracketTree(which, mountId){
   const mount = byId(mountId);
   const br = brackets[which];
-  if(!br || !br.qf){
-    mount.innerHTML = `<p class="note">No hay cuadro todavía. Pulsa “Regenerar cuadro”.</p>`;
-    return;
-  }
-
   const teamById = Object.fromEntries(teams.map(t => [t.id, t.name]));
   const name = (id) => id ? (teamById[id] || `Equipo ${id}`) : "—";
 
-  function row(stage, idx, m){
-    const opts = [`<option value="">Ganador…</option>`];
-    if(m.a) opts.push(`<option value="${m.a}" ${m.winner===m.a?"selected":""}>${name(m.a)}</option>`);
-    if(m.b) opts.push(`<option value="${m.b}" ${m.winner===m.b?"selected":""}>${name(m.b)}</option>`);
+  function box(stage, idx, m){
+    const pickOpts = [`<option value="">Ganador…</option>`];
+    if(m.a) pickOpts.push(`<option value="${m.a}" ${m.winner===m.a?"selected":""}>${name(m.a)}</option>`);
+    if(m.b) pickOpts.push(`<option value="${m.b}" ${m.winner===m.b?"selected":""}>${name(m.b)}</option>`);
+
+    const winnerName = m.winner ? name(m.winner) : "";
+
     return `
-      <tr data-match="${which}-${stage}-${idx}">
-        <td>${name(m.a)} <span class="small">vs</span> ${name(m.b)}</td>
-        <td style="text-align:right;">
-          <input class="score" type="number" min="0" max="9" value="${m.scoreA||0}" data-side="A">
-          <span class="small">-</span>
-          <input class="score" type="number" min="0" max="9" value="${m.scoreB||0}" data-side="B">
-        </td>
-        <td style="text-align:right;">
-          <select data-pick style="padding:8px; border-radius:10px; border:1px solid #ccd;">
-            ${opts.join("")}
-          </select>
-        </td>
-      </tr>`;
+      <div class="matchBox" data-match="${which}-${stage}-${idx}">
+        <div class="matchTeams">
+          <div class="teamLine">
+            <span class="teamName">${name(m.a)}</span>
+            <input class="scoreMini" type="number" min="0" max="9" value="${m.scoreA||0}" data-side="A">
+          </div>
+          <div class="teamLine">
+            <span class="teamName">${name(m.b)}</span>
+            <input class="scoreMini" type="number" min="0" max="9" value="${m.scoreB||0}" data-side="B">
+          </div>
+        </div>
+        <div class="matchActions">
+          <select class="pick" data-pick>${pickOpts.join("")}</select>
+          ${winnerName ? `<span class="winnerBadge">✅ ${winnerName}</span>` : ``}
+        </div>
+      </div>
+    `;
   }
 
   mount.innerHTML = `
-    <div style="overflow:auto;">
-      <table>
-        <thead><tr><th>Partido</th><th style="text-align:right;">Resultado</th><th style="text-align:right;">Ganador</th></tr></thead>
-        <tbody>
-          <tr><td colspan="3" style="background:#f6f7fb; font-weight:800;">Cuartos</td></tr>
-          ${br.qf.map((m,i)=>row("qf",i,m)).join("")}
-          <tr><td colspan="3" style="background:#f6f7fb; font-weight:800;">Semis</td></tr>
-          ${br.sf.map((m,i)=>row("sf",i,m)).join("")}
-          <tr><td colspan="3" style="background:#f6f7fb; font-weight:800;">Final</td></tr>
-          ${row("f",0,br.f)}
-        </tbody>
-      </table>
-    </div>`;
+    <div class="bracket">
+      <div class="round">
+        <div class="roundTitle">Cuartos (8)</div>
+        ${br.qf.map((m,i)=>box("qf", i, m)).join("")}
+      </div>
+      <div class="round">
+        <div class="roundTitle">Semis (4)</div>
+        ${br.sf.map((m,i)=>box("sf", i, m)).join("")}
+      </div>
+      <div class="round">
+        <div class="roundTitle">Final (2)</div>
+        ${box("f", 0, br.f)}
+      </div>
+    </div>
+  `;
 
-  mount.querySelectorAll("tr[data-match]").forEach(tr => {
-    const [_, stage, idxStr] = tr.getAttribute("data-match").split("-");
+  // listeners
+  mount.querySelectorAll(".matchBox").forEach(el => {
+    const [_, stage, idxStr] = el.getAttribute("data-match").split("-");
     const idx = parseInt(idxStr,10);
-    const scoreA = tr.querySelector('input[data-side="A"]');
-    const scoreB = tr.querySelector('input[data-side="B"]');
-    const pick = tr.querySelector('select[data-pick]');
+    const aIn = el.querySelector('input[data-side="A"]');
+    const bIn = el.querySelector('input[data-side="B"]');
+    const pick = el.querySelector('select[data-pick]');
 
     function ref(){
       const b = brackets[which];
@@ -573,8 +695,8 @@ function renderSingleBracket(which, mountId){
       return b.f;
     }
 
-    scoreA.addEventListener("input", () => { const m=ref(); m.scoreA=parseInt(scoreA.value)||0; setDirty(true); saveBrackets(); });
-    scoreB.addEventListener("input", () => { const m=ref(); m.scoreB=parseInt(scoreB.value)||0; setDirty(true); saveBrackets(); });
+    aIn.addEventListener("input", () => { const m=ref(); m.scoreA=parseInt(aIn.value)||0; setDirty(true); saveBrackets(); });
+    bIn.addEventListener("input", () => { const m=ref(); m.scoreB=parseInt(bIn.value)||0; setDirty(true); saveBrackets(); });
     pick.addEventListener("change", () => {
       const m=ref();
       m.winner = pick.value ? parseInt(pick.value,10) : null;
@@ -588,8 +710,50 @@ function renderSingleBracket(which, mountId){
 
 function renderBrackets(){
   ensureBrackets();
-  renderSingleBracket("oro","bracketOro");
-  renderSingleBracket("plata","bracketPlata");
+  renderBracketTree("oro","bracketOro");
+  renderBracketTree("plata","bracketPlata");
+  applyEditLock();
+}
+
+/** CONFIG UI */
+function renderCourtMapEditor(){
+  const mount = byId("courtMapEditor");
+  const letters = Object.keys(courtMap).length ? Object.keys(courtMap).sort() : "ABCDEFGHIJKL".split("");
+
+  mount.innerHTML = `
+    <table>
+      <thead><tr><th>Letra</th><th>Pista real</th></tr></thead>
+      <tbody>
+        ${letters.map(L => {
+          const val = courtMap[L] ?? "";
+          const options = [`<option value="">(sin asignar)</option>`]
+            .concat(ALLOWED_REAL_COURTS.map(n => `<option value="${n}" ${String(val)===String(n)?"selected":""}>${n}</option>`));
+          return `
+            <tr>
+              <td><b>${L}</b></td>
+              <td>
+                <select data-letter="${L}" style="padding:8px;border-radius:10px;border:1px solid #ccd;">
+                  ${options.join("")}
+                </select>
+              </td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+
+  mount.querySelectorAll("select[data-letter]").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const L = sel.getAttribute("data-letter");
+      const v = sel.value;
+      courtMap[L] = v === "" ? "" : Number(v);
+      setDirty(true);
+      renderSchedule(); // refresca etiquetas pista
+      applyEditLock();
+    });
+  });
+
   applyEditLock();
 }
 
@@ -598,6 +762,7 @@ function renderAll(){
   renderSchedule();
   renderLeaderboard();
   renderBrackets();
+  renderCourtMapEditor();
   applyEditLock();
 }
 
@@ -608,9 +773,7 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
     byId(btn.dataset.tab).classList.add("active");
-    renderLeaderboard();
-    renderBrackets();
-    applyEditLock();
+    renderAll();
   });
 });
 
@@ -635,6 +798,7 @@ byId("btnReload").addEventListener("click", async () => {
   await apiLoad();
 });
 byId("btnSave").addEventListener("click", apiSaveAll);
+byId("btnSaveConfig").addEventListener("click", apiSaveConfig);
 byId("btnRebuildBrackets").addEventListener("click", rebuildBracketsFromGroups);
 
 /** AUTO REFRESH */
@@ -652,8 +816,3 @@ setInterval(() => {
 </script>
 </body>
 </html>
-
-
-
-
-
