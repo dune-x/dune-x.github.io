@@ -159,7 +159,7 @@
     <button class="tab active" data-tab="schedule">Grupos</button>
     <button class="tab" data-tab="leaderboard">Clasificación</button>
     <button class="tab" data-tab="finals">Eliminatorias</button>
-    <button class="tab" data-tab="config">Config Pistas</button>
+    <button class="tab" data-tab="config" id="tabConfig">Config Pistas</button>
     <button class="tab" data-tab="courts">Pistas</button>
   </div>
 
@@ -276,10 +276,37 @@ function setDirty(v){
   byId("dirtyState").className = dirty ? "pill warn" : "pill";
 }
 function applyEditLock(){
+  // Bloqueo inputs
   document.querySelectorAll('#schedule input.score').forEach(el => { el.disabled = !isAdmin; });
   document.querySelectorAll('#finals input.scoreMini, #finals select.pick').forEach(el => { el.disabled = !isAdmin; });
   document.querySelectorAll('#config select[data-letter]').forEach(el => { el.disabled = !isAdmin; });
-  byId("btnSaveConfig").disabled = !isAdmin;
+
+  // Botón guardar config
+  const btnSaveCfg = byId("btnSaveConfig");
+  if(btnSaveCfg) btnSaveCfg.disabled = !isAdmin;
+
+  // Estado admin (visual)
+  const adminState = byId("adminState");
+  if(adminState) adminState.textContent = isAdmin ? "Modo: ADMIN (EDITANDO)" : "Modo: SOLO LECTURA";
+
+  const btnLogout = byId("btnLogout");
+  if(btnLogout) btnLogout.style.display = isAdmin ? "inline-block" : "none";
+
+  const autoRefresh = byId("autoRefreshState");
+  if(autoRefresh) autoRefresh.textContent = isAdmin ? "OFF" : "ON";
+
+  // 🔒 Ocultar/mostrar pestaña Config
+  const tabConfig = byId("tabConfig");
+  if(tabConfig) tabConfig.style.display = isAdmin ? "inline-flex" : "none";
+
+  // Si NO eres admin y estás en Config, te saco a "Grupos"
+  const configPanel = byId("config");
+  if(!isAdmin && configPanel && configPanel.classList.contains("active")){
+    const scheduleTab = document.querySelector('.tab[data-tab="schedule"]');
+    if(scheduleTab) scheduleTab.click();
+  }
+}
+
 
 function applyEditLock(){
   // Bloqueo de inputs
@@ -1040,13 +1067,17 @@ document.querySelectorAll(".tab").forEach(btn => {
 
 /** ADMIN */
 byId("btnAdmin").addEventListener("click", () => {
-  const pass = prompt("Contraseña admin:");
+  const pass = (prompt("Contraseña admin:") || "").trim();
   if(pass === ADMIN_PASSWORD){
     isAdmin = true;
     applyEditLock();
+    renderCourtMapEditor(); // por si estaba oculto/deshabilitado
     alert("✅ Modo admin activado");
-  }else alert("❌ Contraseña incorrecta");
+  }else{
+    alert("❌ Contraseña incorrecta");
+  }
 });
+
 byId("btnLogout").addEventListener("click", () => {
   if(dirty && !confirm("Tienes cambios sin guardar. ¿Salir igualmente?")) return;
   isAdmin = false;
@@ -1077,6 +1108,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
