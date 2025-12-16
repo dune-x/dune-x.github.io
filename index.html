@@ -309,7 +309,11 @@ async function apiLoad(){
     courtMap = data.courtMap || {};
     groupConfig = data.groupConfig || {};
 
-    scheduleRows = Array.isArray(data.schedule) ? data.schedule : [];
+    scheduleRows = (Array.isArray(data.schedule) ? data.schedule : []).map(r => ({
+  ...r,
+  time: normalizeTime(r.time)
+}));
+
     matches = buildMatchesFromSchedule(teams, scheduleRows, groupConfig);
     times = [...new Set(matches.map(m => m.time).filter(Boolean))].sort();
 
@@ -513,6 +517,32 @@ function fmtTime(t){
   const mm = String(t.m).padStart(2,"0");
   return `${hh}:${mm}`;
 }
+  function normalizeTime(val){
+  if(val == null) return "";
+  // Si ya viene como "11:00" o "11:00:00"
+  if(typeof val === "string"){
+    const s = val.trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if(m) return `${m[1].padStart(2,"0")}:${m[2]}`;
+    // Si viene como Date string largo, intenta parsearlo:
+    const d = new Date(s);
+    if(!isNaN(d)) return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    return s;
+  }
+  // Si viene como número (fecha serial de Sheets)
+  if(typeof val === "number"){
+    const totalMinutes = Math.round(val * 24 * 60);
+    const hh = String(Math.floor(totalMinutes / 60) % 24).padStart(2,"0");
+    const mm = String(totalMinutes % 60).padStart(2,"0");
+    return `${hh}:${mm}`;
+  }
+  // Si viene como Date real
+  if(val instanceof Date){
+    return `${String(val.getHours()).padStart(2,"0")}:${String(val.getMinutes()).padStart(2,"0")}`;
+  }
+  return "";
+}
+
 function courtLabel(letter){
   const L = String(letter||"").toUpperCase();
   const real = courtMap[L];
@@ -1003,4 +1033,5 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
