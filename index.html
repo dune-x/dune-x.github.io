@@ -139,38 +139,29 @@
 </div>
 
 <script>
-/** =========================
- *  CONFIG
- *  ========================= */
+/** CONFIG */
 const API_URL = "https://script.google.com/macros/s/AKfycbzrDoBAMbqJf7P6dhA5dNXl3SVzBwmkoqRSi13FDeHr_FkGggDDU2WDxCdf6M3GaIarog/exec";
-const ADMIN_PASSWORD = "XDUNEX"; // usado solo para desbloquear UI y POST
+const ADMIN_PASSWORD = "XDUNEX";
 const AUTO_REFRESH_MS = 15000;
 
-/** =========================
- *  STATE
- *  ========================= */
-let teams = [];      // [{id, group, name}]
-let matches = [];    // [{id, group, a, b}]
-let results = {};    // matchId -> {scoreA, scoreB}
+/** STATE */
+let teams = [];
+let matches = [];
+let results = {};
 let isAdmin = false;
-let dirty = false;   // cambios locales sin guardar
+let dirty = false;
 let lastServerLoadAt = null;
 
 const byId = (id) => document.getElementById(id);
 
-/** =========================
- *  UI LOCK / DIRTY
- *  ========================= */
+/** DIRTY + LOCK */
 function setDirty(v){
   dirty = !!v;
   byId("dirtyState").textContent = dirty ? "⚠️ Cambios sin guardar" : "";
   byId("dirtyState").className = dirty ? "pill warn" : "pill";
 }
-
 function applyEditLock(){
-  // Bloquea/desbloquea inputs de fase grupos
   document.querySelectorAll('#schedule input.score').forEach(el => { el.disabled = !isAdmin; });
-  // Bloquea/desbloquea eliminatorias (inputs + selects)
   document.querySelectorAll('#finals input.score, #finals select[data-pick]').forEach(el => { el.disabled = !isAdmin; });
 
   byId("adminState").textContent = isAdmin ? "Modo: ADMIN (EDITANDO)" : "Modo: SOLO LECTURA";
@@ -178,20 +169,14 @@ function applyEditLock(){
   byId("autoRefreshState").textContent = isAdmin ? "OFF" : "ON";
 }
 
-/** =========================
- *  API
- *  ========================= */
+/** API */
 async function apiLoad(){
   byId("serverState").textContent = "Cargando…";
   try{
     const res = await fetch(API_URL, { cache: "no-store" });
     const data = await res.json();
+    if(!data.ok) throw new Error(data.error || "Error API");
 
-    if(!data.ok){
-      throw new Error(data.error || "Error API");
-    }
-
-    // participants -> teams
     teams = (data.participants || []).map(r => ({
       id: parseInt(r.id),
       group: String(r.group || "").trim().toUpperCase(),
@@ -200,25 +185,20 @@ async function apiLoad(){
 
     matches = buildMatches(teams);
 
-    // results
     results = {};
     const rmap = data.results || {};
     Object.keys(rmap).forEach(mid => {
-      results[mid] = {
-        scoreA: Number(rmap[mid].scoreA) || 0,
-        scoreB: Number(rmap[mid].scoreB) || 0
-      };
+      results[mid] = { scoreA: Number(rmap[mid].scoreA) || 0, scoreB: Number(rmap[mid].scoreB) || 0 };
     });
 
     lastServerLoadAt = new Date();
     byId("lastLoad").textContent = lastServerLoadAt.toLocaleString();
     byId("serverState").textContent = "OK";
-
     setDirty(false);
 
     renderAll();
     return true;
-  }catch(err){
+  } catch(err){
     byId("serverState").textContent = "ERROR";
     console.error(err);
     alert("Error cargando del servidor: " + err.message);
@@ -231,7 +211,6 @@ async function apiSaveAll(){
     alert("Estás en SOLO LECTURA. Pulsa “Entrar como admin” primero.");
     return;
   }
-
   const pass = prompt("Contraseña admin (para guardar en servidor):");
   if(pass !== ADMIN_PASSWORD){
     alert("❌ Contraseña incorrecta");
@@ -241,20 +220,19 @@ async function apiSaveAll(){
   byId("serverState").textContent = "Guardando…";
   try{
     const payload = { password: pass, results };
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if(!data.ok){
-      throw new Error(data.error || "Error guardando");
-    }
+    // IMPORTANTÍSIMO: NO mandar Content-Type application/json (evita preflight CORS)
+    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+
+    const txt = await res.text();
+    let data;
+    try { data = JSON.parse(txt); } catch { throw new Error("Respuesta no JSON: " + txt.slice(0,200)); }
+    if(!data.ok) throw new Error(data.error || "Error guardando");
+
     byId("serverState").textContent = "OK";
     setDirty(false);
     alert("✅ Guardado en servidor (" + data.updated + " partidos)");
     return true;
-  }catch(err){
+  } catch(err){
     byId("serverState").textContent = "ERROR";
     console.error(err);
     alert("❌ Error guardando: " + err.message);
@@ -262,36 +240,23 @@ async function apiSaveAll(){
   }
 }
 
-/** =========================
- *  MATCH GENERATION
- *  ========================= */
+/** MATCHES */
 function buildMatches(teams){
   const groups = {};
-  teams.forEach(t => {
-    if(!groups[t.group]) groups[t.group] = [];
-    groups[t.group].push(t);
-  });
-
+  teams.forEach(t => (groups[t.group] ??= []).push(t));
   const out = [];
   Object.keys(groups).sort().forEach(g => {
     const list = groups[g];
     for(let i=0;i<list.length;i++){
       for(let j=i+1;j<list.length;j++){
-        out.push({
-          id: `${g}-${list[i].id}-${list[j].id}`,
-          group: g,
-          a: list[i].id,
-          b: list[j].id
-        });
+        out.push({ id: `${g}-${list[i].id}-${list[j].id}`, group:g, a:list[i].id, b:list[j].id });
       }
     }
   });
   return out;
 }
 
-/** =========================
- *  RENDER: GROUPS
- *  ========================= */
+/** RENDER GROUPS */
 function renderSchedule(){
   const grid = byId("scheduleGrid");
   grid.innerHTML = "";
@@ -301,8 +266,7 @@ function renderSchedule(){
       <div class="card">
         <div class="title"><h2>Sin participantes</h2></div>
         <p class="note">Revisa que en Google Sheets exista la pestaña <b>Participants</b> con datos.</p>
-      </div>
-    `;
+      </div>`;
     return;
   }
 
@@ -323,9 +287,7 @@ function renderSchedule(){
       </div>
       <div class="small">${groupTeams.map(t => t.name).join(" · ")}</div>
       <table>
-        <thead>
-          <tr><th>Partido</th><th style="text-align:right;">Resultado</th></tr>
-        </thead>
+        <thead><tr><th>Partido</th><th style="text-align:right;">Resultado</th></tr></thead>
         <tbody>
           ${groupMatches.map(m => {
             const aName = teamById[m.a]?.name ?? m.a;
@@ -338,65 +300,47 @@ function renderSchedule(){
                 <td>${aName} <span class="small">vs</span> ${bName}</td>
                 <td>
                   <div class="scoreBox">
-                    <input class="score ${clsA}" inputmode="numeric" type="number" min="0" max="9"
-                      value="${r.scoreA}" data-side="A"/>
+                    <input class="score ${clsA}" type="number" min="0" max="9" value="${r.scoreA}" data-side="A"/>
                     <span class="small">-</span>
-                    <input class="score ${clsB}" inputmode="numeric" type="number" min="0" max="9"
-                      value="${r.scoreB}" data-side="B"/>
+                    <input class="score ${clsB}" type="number" min="0" max="9" value="${r.scoreB}" data-side="B"/>
                   </div>
                 </td>
-              </tr>
-            `;
+              </tr>`;
           }).join("")}
         </tbody>
       </table>
     `;
-
     grid.appendChild(card);
   });
 
-  // listeners
   grid.querySelectorAll("tr[data-mid] input.score").forEach(inp => {
     inp.addEventListener("input", (e) => {
       const tr = e.target.closest("tr");
       const mid = tr.getAttribute("data-mid");
       const a = tr.querySelector('input[data-side="A"]');
       const b = tr.querySelector('input[data-side="B"]');
-      const scoreA = parseInt(a.value) || 0;
-      const scoreB = parseInt(b.value) || 0;
-
-      results[mid] = {scoreA, scoreB};
+      results[mid] = { scoreA: parseInt(a.value)||0, scoreB: parseInt(b.value)||0 };
       setDirty(true);
       renderAll();
     });
   });
 }
 
-/** =========================
- *  LEADERBOARD
- *  ========================= */
+/** LEADERBOARD */
 function computeLeaderboard(){
   const stats = {};
-  teams.forEach(t => {
-    stats[t.id] = { id:t.id, name:t.name, group:t.group, pg:0, pp:0, jg:0, jp:0, diff:0, points:0 };
-  });
+  teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, group:t.group, pg:0, pp:0, jg:0, jp:0, diff:0, points:0 });
 
   matches.forEach(m => {
-    const r = results[m.id];
-    if(!r) return;
-    const a = stats[m.a], b = stats[m.b];
-    if(!a || !b) return;
+    const r = results[m.id]; if(!r) return;
+    const a = stats[m.a], b = stats[m.b]; if(!a || !b) return;
 
-    const sa = r.scoreA || 0;
-    const sb = r.scoreB || 0;
-
+    const sa = r.scoreA||0, sb = r.scoreB||0;
     if(sa===0 && sb===0) return;
 
-    a.jg += sa; a.jp += sb;
-    b.jg += sb; b.jp += sa;
-
-    if(sa>sb){ a.pg++; a.points += 3; b.pp++; }
-    else if(sb>sa){ b.pg++; b.points += 3; a.pp++; }
+    a.jg+=sa; a.jp+=sb; b.jg+=sb; b.jp+=sa;
+    if(sa>sb){ a.pg++; a.points+=3; b.pp++; }
+    else if(sb>sa){ b.pg++; b.points+=3; a.pp++; }
   });
 
   Object.values(stats).forEach(s => s.diff = s.jg - s.jp);
@@ -406,22 +350,20 @@ function computeLeaderboard(){
 
   const ordered = [];
   Object.keys(grouped).sort().forEach(g => {
-    grouped[g].sort((x,y) => (y.points-x.points) || (y.diff-x.diff) || (y.jg-x.jg));
+    grouped[g].sort((x,y)=>(y.points-x.points)||(y.diff-x.diff)||(y.jg-x.jg));
     ordered.push(...grouped[g]);
   });
-
   return ordered;
 }
 
 function renderLeaderboard(){
   const tbody = byId("leaderTbody");
   tbody.innerHTML = "";
-
   if(!teams.length) return;
 
   const ordered = computeLeaderboard();
-
   let lastGroup = null;
+
   ordered.forEach((t, idx) => {
     let groupRank = 1;
     for(let i=idx-1; i>=0 && ordered[i].group===t.group; i--) groupRank++;
@@ -432,12 +374,11 @@ function renderLeaderboard(){
       tbody.appendChild(sep);
     }
 
-    let status = "—";
-    let cls = "";
-    if(groupRank === 1){ status = "1º Grupo (ORO)"; cls = "top1"; }
-    else if(groupRank === 2){ status = "2º Grupo"; cls = "top2"; }
-    else if(groupRank === 3){ status = "3º Grupo"; }
-    else status = "4º Grupo";
+    let status="—", cls="";
+    if(groupRank===1){ status="1º Grupo (ORO)"; cls="top1"; }
+    else if(groupRank===2){ status="2º Grupo"; cls="top2"; }
+    else if(groupRank===3){ status="3º Grupo"; }
+    else status="4º Grupo";
 
     const tr = document.createElement("tr");
     if(cls) tr.className = cls;
@@ -458,10 +399,7 @@ function renderLeaderboard(){
   });
 }
 
-/** =========================
- *  BRACKETS (ORO/PLATA)
- *  ========================= */
-let brackets = loadBrackets() || { oro: {}, plata: {} };
+/** BRACKETS */
 const BRACKET_LOCAL_KEY = "dune_brackets_local_v1";
 
 function loadBrackets(){
@@ -469,26 +407,27 @@ function loadBrackets(){
   if(!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
+let brackets = loadBrackets() || { oro: {}, plata: {} };
+
 function saveBrackets(){
   localStorage.setItem(BRACKET_LOCAL_KEY, JSON.stringify(brackets));
 }
 
 function computeGroupRankMap(ordered){
   const map = { first: [], second: [], third: [], fourth: [] };
-  const groups = [...new Set(ordered.map(x => x.group))].sort();
+  const groups = [...new Set(ordered.map(x=>x.group))].sort();
 
   groups.forEach(g => {
-    const arr = ordered.filter(x => x.group === g);
+    const arr = ordered.filter(x => x.group===g);
     if(arr[0]) map.first.push(arr[0]);
     if(arr[1]) map.second.push(arr[1]);
     if(arr[2]) map.third.push(arr[2]);
     if(arr[3]) map.fourth.push(arr[3]);
   });
 
-  const sortGlobal = (a,b) => (b.points-a.points) || (b.diff-a.diff) || (b.jg-a.jg);
+  const sortGlobal = (a,b)=>(b.points-a.points)||(b.diff-a.diff)||(b.jg-a.jg);
   map.second.sort(sortGlobal);
   map.third.sort(sortGlobal);
-
   return map;
 }
 
@@ -497,12 +436,12 @@ function buildSeedsFromLeaderboard(){
   const rankMap = computeGroupRankMap(ordered);
 
   const oro = [];
-  rankMap.first.forEach(x => oro.push(x));          // 1º de cada grupo
-  if(rankMap.second[0]) oro.push(rankMap.second[0]); // mejor 2º para completar 8
+  rankMap.first.forEach(x => oro.push(x));
+  if(rankMap.second[0]) oro.push(rankMap.second[0]);
 
   const plata = [];
-  rankMap.second.slice(1).forEach(x => plata.push(x)); // resto 2º
-  rankMap.third.slice(0,2).forEach(x => plata.push(x)); // mejores 3º
+  rankMap.second.slice(1).forEach(x => plata.push(x));
+  rankMap.third.slice(0,2).forEach(x => plata.push(x));
 
   return { oro: oro.slice(0,8), plata: plata.slice(0,8) };
 }
@@ -511,16 +450,16 @@ function defaultBracketFromSeeds(seeds){
   const s = seeds.map(x => x ? x.id : null);
   return {
     qf: [
-      { a: s[0], b: s[7], winner: null, scoreA:0, scoreB:0 },
-      { a: s[3], b: s[4], winner: null, scoreA:0, scoreB:0 },
-      { a: s[1], b: s[6], winner: null, scoreA:0, scoreB:0 },
-      { a: s[2], b: s[5], winner: null, scoreA:0, scoreB:0 },
+      { a:s[0], b:s[7], winner:null, scoreA:0, scoreB:0 },
+      { a:s[3], b:s[4], winner:null, scoreA:0, scoreB:0 },
+      { a:s[1], b:s[6], winner:null, scoreA:0, scoreB:0 },
+      { a:s[2], b:s[5], winner:null, scoreA:0, scoreB:0 }
     ],
     sf: [
-      { a: null, b: null, winner: null, scoreA:0, scoreB:0 },
-      { a: null, b: null, winner: null, scoreA:0, scoreB:0 },
+      { a:null, b:null, winner:null, scoreA:0, scoreB:0 },
+      { a:null, b:null, winner:null, scoreA:0, scoreB:0 }
     ],
-    f: { a: null, b: null, winner: null, scoreA:0, scoreB:0 }
+    f: { a:null, b:null, winner:null, scoreA:0, scoreB:0 }
   };
 }
 
@@ -533,10 +472,6 @@ function propagateWinners(which){
 
   br.f.a = br.sf[0].winner ?? null;
   br.f.b = br.sf[1].winner ?? null;
-
-  if(br.sf[0].winner && ![br.sf[0].a, br.sf[0].b].includes(br.sf[0].winner)) br.sf[0].winner = null;
-  if(br.sf[1].winner && ![br.sf[1].a, br.sf[1].b].includes(br.sf[1].winner)) br.sf[1].winner = null;
-  if(br.f.winner && ![br.f.a, br.f.b].includes(br.f.winner)) br.f.winner = null;
 }
 
 function rebuildBracketsFromGroups(){
@@ -551,8 +486,7 @@ function rebuildBracketsFromGroups(){
 }
 
 function ensureBrackets(){
-  if(!brackets || !brackets.oro?.qf || !brackets.plata?.qf){
-    brackets = { oro: {}, plata: {} };
+  if(!brackets.oro?.qf || !brackets.plata?.qf){
     rebuildBracketsFromGroups();
   } else {
     propagateWinners("oro");
@@ -561,17 +495,9 @@ function ensureBrackets(){
   }
 }
 
-function renderBrackets(){
-  ensureBrackets();
-  renderSingleBracket("oro", "bracketOro");
-  renderSingleBracket("plata", "bracketPlata");
-  applyEditLock();
-}
-
 function renderSingleBracket(which, mountId){
   const mount = byId(mountId);
   const br = brackets[which];
-
   if(!br || !br.qf){
     mount.innerHTML = `<p class="note">No hay cuadro todavía. Pulsa “Regenerar cuadro”.</p>`;
     return;
@@ -580,82 +506,59 @@ function renderSingleBracket(which, mountId){
   const teamById = Object.fromEntries(teams.map(t => [t.id, t.name]));
   const name = (id) => id ? (teamById[id] || `Equipo ${id}`) : "—";
 
-  function matchRow(stage, idx, m){
-    const matchId = `${which}-${stage}-${idx}`;
-    const opts = [];
-    opts.push(`<option value="">Ganador…</option>`);
-    if(m.a) opts.push(`<option value="${m.a}" ${String(m.winner)===String(m.a) ? "selected":""}>${name(m.a)}</option>`);
-    if(m.b) opts.push(`<option value="${m.b}" ${String(m.winner)===String(m.b) ? "selected":""}>${name(m.b)}</option>`);
-
+  function row(stage, idx, m){
+    const opts = [`<option value="">Ganador…</option>`];
+    if(m.a) opts.push(`<option value="${m.a}" ${m.winner===m.a?"selected":""}>${name(m.a)}</option>`);
+    if(m.b) opts.push(`<option value="${m.b}" ${m.winner===m.b?"selected":""}>${name(m.b)}</option>`);
     return `
-      <tr data-match="${matchId}">
+      <tr data-match="${which}-${stage}-${idx}">
         <td>${name(m.a)} <span class="small">vs</span> ${name(m.b)}</td>
         <td style="text-align:right;">
-          <input class="score" inputmode="numeric" type="number" min="0" max="9" value="${m.scoreA||0}" data-side="A">
+          <input class="score" type="number" min="0" max="9" value="${m.scoreA||0}" data-side="A">
           <span class="small">-</span>
-          <input class="score" inputmode="numeric" type="number" min="0" max="9" value="${m.scoreB||0}" data-side="B">
+          <input class="score" type="number" min="0" max="9" value="${m.scoreB||0}" data-side="B">
         </td>
         <td style="text-align:right;">
           <select data-pick style="padding:8px; border-radius:10px; border:1px solid #ccd;">
             ${opts.join("")}
           </select>
         </td>
-      </tr>
-    `;
+      </tr>`;
   }
 
   mount.innerHTML = `
     <div style="overflow:auto;">
       <table>
-        <thead>
-          <tr><th>Partido</th><th style="text-align:right;">Resultado</th><th style="text-align:right;">Ganador</th></tr>
-        </thead>
+        <thead><tr><th>Partido</th><th style="text-align:right;">Resultado</th><th style="text-align:right;">Ganador</th></tr></thead>
         <tbody>
           <tr><td colspan="3" style="background:#f6f7fb; font-weight:800;">Cuartos</td></tr>
-          ${br.qf.map((m,i)=>matchRow("qf", i, m)).join("")}
-
+          ${br.qf.map((m,i)=>row("qf",i,m)).join("")}
           <tr><td colspan="3" style="background:#f6f7fb; font-weight:800;">Semis</td></tr>
-          ${br.sf.map((m,i)=>matchRow("sf", i, m)).join("")}
-
+          ${br.sf.map((m,i)=>row("sf",i,m)).join("")}
           <tr><td colspan="3" style="background:#f6f7fb; font-weight:800;">Final</td></tr>
-          ${matchRow("f", 0, br.f)}
+          ${row("f",0,br.f)}
         </tbody>
       </table>
-    </div>
-  `;
+    </div>`;
 
-  // listeners
   mount.querySelectorAll("tr[data-match]").forEach(tr => {
-    const matchId = tr.getAttribute("data-match"); // oro-qf-0
-    const parts = matchId.split("-");
-    const stage = parts[1];
-    const idx = parseInt(parts[2], 10);
-
+    const [_, stage, idxStr] = tr.getAttribute("data-match").split("-");
+    const idx = parseInt(idxStr,10);
     const scoreA = tr.querySelector('input[data-side="A"]');
     const scoreB = tr.querySelector('input[data-side="B"]');
     const pick = tr.querySelector('select[data-pick]');
 
-    function getMatchRef(){
-      const br = brackets[which];
-      if(stage === "qf") return br.qf[idx];
-      if(stage === "sf") return br.sf[idx];
-      return br.f;
+    function ref(){
+      const b = brackets[which];
+      if(stage==="qf") return b.qf[idx];
+      if(stage==="sf") return b.sf[idx];
+      return b.f;
     }
 
-    scoreA.addEventListener("input", () => {
-      const m = getMatchRef();
-      m.scoreA = parseInt(scoreA.value)||0;
-      setDirty(true);
-      saveBrackets();
-    });
-    scoreB.addEventListener("input", () => {
-      const m = getMatchRef();
-      m.scoreB = parseInt(scoreB.value)||0;
-      setDirty(true);
-      saveBrackets();
-    });
+    scoreA.addEventListener("input", () => { const m=ref(); m.scoreA=parseInt(scoreA.value)||0; setDirty(true); saveBrackets(); });
+    scoreB.addEventListener("input", () => { const m=ref(); m.scoreB=parseInt(scoreB.value)||0; setDirty(true); saveBrackets(); });
     pick.addEventListener("change", () => {
-      const m = getMatchRef();
+      const m=ref();
       m.winner = pick.value ? parseInt(pick.value,10) : null;
       setDirty(true);
       propagateWinners(which);
@@ -665,9 +568,14 @@ function renderSingleBracket(which, mountId){
   });
 }
 
-/** =========================
- *  RENDER ALL
- *  ========================= */
+function renderBrackets(){
+  ensureBrackets();
+  renderSingleBracket("oro","bracketOro");
+  renderSingleBracket("plata","bracketPlata");
+  applyEditLock();
+}
+
+/** RENDER ALL */
 function renderAll(){
   renderSchedule();
   renderLeaderboard();
@@ -675,74 +583,50 @@ function renderAll(){
   applyEditLock();
 }
 
-/** =========================
- *  TABS
- *  ========================= */
+/** TABS */
 document.querySelectorAll(".tab").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
     byId(btn.dataset.tab).classList.add("active");
-    // refrescar vistas al entrar
     renderLeaderboard();
     renderBrackets();
     applyEditLock();
   });
 });
 
-/** =========================
- *  ADMIN LOGIN (UI)
- *  ========================= */
+/** ADMIN */
 byId("btnAdmin").addEventListener("click", () => {
   const pass = prompt("Contraseña admin:");
   if(pass === ADMIN_PASSWORD){
     isAdmin = true;
     applyEditLock();
-    alert("✅ Modo admin activado (edición desbloqueada)");
-  }else{
-    alert("❌ Contraseña incorrecta");
-  }
+    alert("✅ Modo admin activado");
+  }else alert("❌ Contraseña incorrecta");
 });
-
 byId("btnLogout").addEventListener("click", () => {
   if(dirty && !confirm("Tienes cambios sin guardar. ¿Salir igualmente?")) return;
   isAdmin = false;
   applyEditLock();
 });
 
-/** =========================
- *  BUTTONS
- *  ========================= */
+/** BUTTONS */
 byId("btnReload").addEventListener("click", async () => {
-  if(isAdmin && dirty){
-    const ok = confirm("Tienes cambios sin guardar. Recargar perderá cambios locales. ¿Continuar?");
-    if(!ok) return;
-  }
+  if(isAdmin && dirty && !confirm("Tienes cambios sin guardar. Recargar los perderá. ¿Continuar?")) return;
   await apiLoad();
 });
+byId("btnSave").addEventListener("click", apiSaveAll);
+byId("btnRebuildBrackets").addEventListener("click", rebuildBracketsFromGroups);
 
-byId("btnSave").addEventListener("click", async () => {
-  await apiSaveAll();
-});
-
-byId("btnRebuildBrackets").addEventListener("click", () => {
-  if(!teams.length) return;
-  rebuildBracketsFromGroups();
-});
-
-/** =========================
- *  AUTO REFRESH (spectators)
- *  ========================= */
+/** AUTO REFRESH */
 setInterval(() => {
-  if(isAdmin) return;          // no molestar mientras editas
-  if(dirty) return;            // si por lo que sea hay cambios locales, no pisarlos
+  if(isAdmin) return;
+  if(dirty) return;
   apiLoad().catch(()=>{});
 }, AUTO_REFRESH_MS);
 
-/** =========================
- *  BOOT
- *  ========================= */
+/** BOOT */
 (async function boot(){
   applyEditLock();
   await apiLoad();
@@ -750,4 +634,3 @@ setInterval(() => {
 </script>
 </body>
 </html>
-
