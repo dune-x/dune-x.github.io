@@ -281,9 +281,53 @@ function applyEditLock(){
   document.querySelectorAll('#config select[data-letter]').forEach(el => { el.disabled = !isAdmin; });
   byId("btnSaveConfig").disabled = !isAdmin;
 
-  byId("adminState").textContent = isAdmin ? "Modo: ADMIN (EDITANDO)" : "Modo: SOLO LECTURA";
+function applyEditLock(){
+  // Bloqueo de inputs
+  document.querySelectorAll('#schedule input.score').forEach(el => {
+    el.disabled = !isAdmin;
+  });
+  document.querySelectorAll('#finals input.scoreMini, #finals select.pick').forEach(el => {
+    el.disabled = !isAdmin;
+  });
+  document.querySelectorAll('#config select[data-letter]').forEach(el => {
+    el.disabled = !isAdmin;
+  });
+
+  // Botón guardar config
+  byId("btnSaveConfig").disabled = !isAdmin;
+
+  // Estado admin
+  byId("adminState").textContent = isAdmin
+    ? "Modo: ADMIN (EDITANDO)"
+    : "Modo: SOLO LECTURA";
+
   byId("btnLogout").style.display = isAdmin ? "inline-block" : "none";
   byId("autoRefreshState").textContent = isAdmin ? "OFF" : "ON";
+
+  /* =========================
+     🔒 VISIBILIDAD CONFIG PISTAS
+     ========================= */
+
+  // Botón de pestaña
+  const configTabBtn = document.querySelector('.tab[data-tab="config"]');
+  if(configTabBtn){
+    configTabBtn.style.display = isAdmin ? "inline-flex" : "none";
+  }
+
+  // Panel de contenido
+  const configPanel = byId("config");
+  if(configPanel && !isAdmin){
+    configPanel.classList.remove("active");
+  }
+
+  // Si el usuario NO es admin y estaba en config → volver a Grupos
+  if(!isAdmin){
+    const scheduleTab = document.querySelector('.tab[data-tab="schedule"]');
+    if(scheduleTab){
+      scheduleTab.click();
+    }
+  }
+}
 }
 
 /** API */
@@ -1033,6 +1077,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
