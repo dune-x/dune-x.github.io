@@ -96,7 +96,16 @@
     /* Header logo */
     .headerTop{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
     .headerLogo{height:150px; width:auto; max-width:100%; border-radius:10px;}
+    .headerTop.banner{
+  width:100%;
+}
 
+.headerBanner{
+  width:100%;
+  height:auto;        /* mantiene proporción */
+  display:block;      /* elimina huecos raros */
+  border-radius:12px; /* si lo quieres con esquinas */
+}
     /* Match meta chips */
     .chips{display:flex; gap:6px; flex-wrap:wrap;}
     .chip{display:inline-flex; gap:6px; align-items:center; background:#f2f4fb; border:1px solid #e3e6f5; padding:3px 8px; border-radius:999px; font-size:.78rem; color:#234;}
@@ -153,12 +162,8 @@
 <body>
 <div class="wrap">
   <div class="header">
-    <div class="headerTop">
-      <img src="logo.png" alt="Logo DUNE" class="headerLogo">
-      <div>
-        <h1>Torneo Pádel DUNE-X</h1>
-        <div class="small">Resultados en tiempo real</div>
-      </div>
+    <div class="headerTop banner">
+      <img src="header.jpg" alt="Banner Torneo Pádel DUNE-X" class="headerBanner">
     </div>
 
     <div class="row" style="margin-top:10px;">
@@ -1074,6 +1079,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
