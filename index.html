@@ -648,8 +648,21 @@ function computeLeaderboard(){
     if(sa===0 && sb===0) return;
 
     a.jg+=sa; a.jp+=sb; b.jg+=sb; b.jp+=sa;
-    if(sa>sb){ a.pg++; a.points+=3; b.pp++; }
-    else if(sb>sa){ b.pg++; b.points+=3; a.pp++; }
+    if(sa > sb){
+  a.pg++;
+  a.points += 3;
+  b.pp++;
+}
+else if(sb > sa){
+  b.pg++;
+  b.points += 3;
+  a.pp++;
+}
+else { // EMPATE
+  a.points += 1;
+  b.points += 1;
+}
+
   });
 
   Object.values(stats).forEach(s => s.diff = s.jg - s.jp);
@@ -1044,6 +1057,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
