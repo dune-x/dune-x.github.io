@@ -80,10 +80,15 @@
     .tag{background:#e9eef7; color:#123; font-weight:700; padding:2px 10px; border-radius:999px; font-size:.8rem;}
     .top1{background:#ffd700;}
     .top2{background:#c0c0c0;}
-    @media (max-width:520px){
-      .score{width:48px;}
-      .btn{width:100%;}
-    }
+    /* Nuevos colores por cuadro */
+    .rowOro  { background:#fff3c4; }   /* oro suave */
+    .rowPlata{ background:#eef2ff; }   /* plata suave */
+
+    .rowOro td b, .rowPlata td b { color:#111; }
+        @media (max-width:520px){
+          .score{width:48px;}
+          .btn{width:100%;}
+        }
     .note{margin-top:10px; font-size:.9rem; color:var(--muted);}
     .statusbar{
       margin-top:10px; padding:10px 12px; border-radius:12px;
@@ -209,11 +214,17 @@
       </div>
       <table>
         <thead>
-          <tr>
-            <th># Grupo</th><th>Pareja</th><th>Grupo</th>
-            <th>PG</th><th>PP</th><th>JG</th><th>JP</th><th>Dif</th><th>Puntos</th><th>Estado</th>
-          </tr>
-        </thead>
+  <tr>
+    <th># Grupo</th>
+    <th>Pareja</th>
+    <th>Grupo</th>
+    <th>V-E-D</th>
+    <th>PG-PP</th>
+    <th>DIFF</th>
+    <th>Puntos</th>
+    <th>Estado</th>
+  </tr>
+</thead>
         <tbody id="leaderTbody"></tbody>
       </table>
     </div>
@@ -661,7 +672,11 @@ function renderSchedule(){
 /** LEADERBOARD */
 function computeLeaderboard(){
   const stats = {};
-  teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, group:t.group, pg:0, pp:0, jg:0, jp:0, diff:0, points:0 });
+  teams.forEach(t => stats[t.id] = {
+    id:t.id, name:t.name, group:t.group,
+    pg:0, pe:0, pp:0,         // <- pe = empates
+    jg:0, jp:0, diff:0, points:0
+  });
 
   matches.forEach(m => {
     const r = results[m.id]; if(!r) return;
@@ -669,22 +684,20 @@ function computeLeaderboard(){
     const sa = r.scoreA||0, sb = r.scoreB||0;
     if(sa===0 && sb===0) return;
 
-    a.jg+=sa; a.jp+=sb; b.jg+=sb; b.jp+=sa;
-    if(sa > sb){
-  a.pg++;
-  a.points += 3;
-  b.pp++;
-}
-else if(sb > sa){
-  b.pg++;
-  b.points += 3;
-  a.pp++;
-}
-else { // EMPATE
-  a.points += 1;
-  b.points += 1;
-}
+    a.jg+=sa; a.jp+=sb;
+    b.jg+=sb; b.jp+=sa;
 
+    if(sa > sb){
+      a.pg++; a.points += 3;
+      b.pp++;
+    } else if(sb > sa){
+      b.pg++; b.points += 3;
+      a.pp++;
+    } else { // EMPATE
+      a.pe++; b.pe++;
+      a.points += 1;
+      b.points += 1;
+    }
   });
 
   Object.values(stats).forEach(s => s.diff = s.jg - s.jp);
@@ -697,14 +710,51 @@ else { // EMPATE
     grouped[g].sort((x,y)=>(y.points-x.points)||(y.diff-x.diff)||(y.jg-x.jg));
     ordered.push(...grouped[g]);
   });
+
   return ordered;
 }
+  function computeQualifiedSets(ordered){
+  const groups = [...new Set(ordered.map(x=>x.group))].sort();
+
+  const firsts = [];
+  const seconds = [];
+  const thirds = [];
+
+  groups.forEach(g => {
+    const arr = ordered.filter(x => x.group === g);
+    if(arr[0]) firsts.push(arr[0]);
+    if(arr[1]) seconds.push(arr[1]);
+    if(arr[2]) thirds.push(arr[2]);
+  });
+
+  const sortGlobal = (a,b)=>(b.points-a.points)||(b.diff-a.diff)||(b.jg-a.jg);
+
+  // mejor 2º a ORO
+  const secondsSorted = seconds.slice().sort(sortGlobal);
+  const bestSecond = secondsSorted[0] ? secondsSorted[0].id : null;
+
+  // 2 mejores 3º a PLATA
+  const thirdsSorted = thirds.slice().sort(sortGlobal);
+  const bestThirds = new Set(thirdsSorted.slice(0,2).map(x=>x.id));
+
+  const oro = new Set(firsts.map(x=>x.id));
+  if(bestSecond) oro.add(bestSecond);
+
+  const plata = new Set(seconds.map(x=>x.id)); // todos los 2º...
+  if(bestSecond) plata.delete(bestSecond);     // ...menos el mejor 2º (que sube a ORO)
+  bestThirds.forEach(id => plata.add(id));     // + 2 mejores 3º
+
+  return { oro, plata, bestSecond };
+}
+
 function renderLeaderboard(){
   const tbody = byId("leaderTbody");
   tbody.innerHTML = "";
   if(!teams.length) return;
 
   const ordered = computeLeaderboard();
+  const q = computeQualifiedSets(ordered);
+
   let lastGroup = null;
 
   ordered.forEach((t, idx) => {
@@ -713,34 +763,45 @@ function renderLeaderboard(){
 
     if(lastGroup !== null && t.group !== lastGroup){
       const sep = document.createElement("tr");
-      sep.innerHTML = `<td colspan="10" style="background:#eee; height:8px; padding:0; border:0;"></td>`;
+      sep.innerHTML = `<td colspan="8" style="background:#eee; height:8px; padding:0; border:0;"></td>`;
       tbody.appendChild(sep);
     }
 
-    let status="—", cls="";
-    if(groupRank===1){ status="1º Grupo (ORO)"; cls="top1"; }
-    else if(groupRank===2){ status="2º Grupo"; cls="top2"; }
-    else if(groupRank===3){ status="3º Grupo"; }
+    // Estado (texto)
+    let status="—";
+    if(groupRank===1) status="1º Grupo";
+    else if(groupRank===2) status="2º Grupo";
+    else if(groupRank===3) status="3º Grupo";
     else status="4º Grupo";
 
+    // Colores por cuadro
+    let rowCls = "";
+    if(q.oro.has(t.id)) rowCls = "rowOro";
+    else if(q.plata.has(t.id)) rowCls = "rowPlata";
+
+    // Mostrar etiqueta en estado (opcional pero útil)
+    if(q.oro.has(t.id)) status += " (ORO)";
+    else if(q.plata.has(t.id)) status += " (PLATA)";
+
     const tr = document.createElement("tr");
-    if(cls) tr.className = cls;
+    if(rowCls) tr.className = rowCls;
+
     tr.innerHTML = `
       <td><b>${groupRank}</b></td>
       <td><b>${t.name}</b></td>
       <td>${t.group}</td>
-      <td>${t.pg}</td>
-      <td>${t.pp}</td>
-      <td>${t.jg}</td>
-      <td>${t.jp}</td>
-      <td>${t.diff}</td>
+      <td><b>${t.pg}-${t.pe}-${t.pp}</b></td>
+      <td><b>${t.jg}-${t.jp}</b></td>
+      <td><b>${t.jg}-${t.jp}</b></td>
       <td><b>${t.points}</b></td>
       <td>${status}</td>
     `;
+
     tbody.appendChild(tr);
     lastGroup = t.group;
   });
 }
+
 
 /** BRACKETS (tree style) */
 const BRACKET_LOCAL_KEY = "dune_brackets_local_v2_tree";
@@ -1079,6 +1140,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
