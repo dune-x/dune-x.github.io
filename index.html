@@ -210,7 +210,7 @@
     <div class="card leader">
       <div class="title">
         <h2>📊 Clasificación (3 puntos por victoria)</h2>
-        <span class="small">Orden: Puntos → Diferencia de juegos → Juegos ganados</span>
+        <span class="small">Orden: Puntos (Vistorias, derrotas y empates)→ Diferencia de puntos → Nº de puntos ganados</span>
       </div>
       <table>
         <thead>
@@ -792,7 +792,7 @@ function renderLeaderboard(){
       <td>${t.group}</td>
       <td><b>${t.pg}-${t.pe}-${t.pp}</b></td>
       <td><b>${t.jg}-${t.jp}</b></td>
-      <td><b>${t.jg}-${t.jp}</b></td>
+      <td><b>${t.diff > 0 ? "+" : ""}${t.diff}</b></td>
       <td><b>${t.points}</b></td>
       <td>${status}</td>
     `;
@@ -1140,6 +1140,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
